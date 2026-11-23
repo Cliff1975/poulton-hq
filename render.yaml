@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: poulton-hq
+    runtime: node
+    plan: starter            # needed for the persistent disk below (free plans lose data on restart)
+    region: frankfurt
+    buildCommand: "echo no build step"
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: DASH_USER
+        value: cliff
+      - key: DASH_PASS
+        sync: false          # Render asks you to type it in; never commit it
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: hq-data
+      mountPath: /var/data
+      sizeGB: 1
