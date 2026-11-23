@@ -12,3 +12,9 @@ services:
         value: cliff
       - key: DASH_PASS
         sync: false          # Render asks you to type it in; never commit it
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: hq-data
+      mountPath: /var/data
+      sizeGB: 1
