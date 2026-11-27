@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gmail Link Cleaner</title>
+<style>
+:root{--navy:#1a3a5c;--gold:#c8aa6e;--muted:#4a6785;--bg:#f7f5f0;--card:#fff}
+body{margin:0;background:var(--bg);color:var(--navy);font-family:"DM Sans",system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:24px 16px}
+h1{font-family:"Playfair Display",Georgia,serif;font-weight:600;margin:0 0 4px}
+p{color:var(--muted);line-height:1.5}
+.card{background:var(--card);border-radius:12px;padding:20px;margin:16px 0;box-shadow:0 1px 3px rgba(26,58,92,.12)}
+.btn{display:inline-block;background:var(--navy);color:#fff;border:0;border-radius:8px;padding:10px 18px;font:inherit;text-decoration:none;cursor:pointer;margin-right:8px}
+.btn.gold{background:var(--gold);color:var(--navy)}
+.ok{color:#2e7d4f}.err{color:#b3261e}
+li{margin:6px 0}small{color:var(--muted)}
+a.back{color:var(--muted)}
+</style></head><body><main>
+<a class="back" href="/">&larr; Poulton HQ</a>
+<h1>Gmail link cleaner</h1>
+<p>Every 5 minutes HQ checks the drafts in info@poultonconsults.com and swaps Google's redirect links for the real ones, so a client opens a presentation in one click. It only edits drafts. It never sends or deletes anything.</p>
+<div class="card" id="state">Loading…</div>
+<div class="card"><b>Recently cleaned drafts</b><ul id="fixed"><li><small>None yet</small></li></ul></div>
+<script>
+async function load(){
+  const s = await (await fetch('/api/gmail/status')).json();
+  const el = document.getElementById('state');
+  if(!s.enabled){ el.innerHTML = '<span class="err">Not set up yet.</span> Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Render &gt; poulton-hq &gt; Environment.'; return; }
+  el.innerHTML = (s.connected ? '<span class="ok">Connected to Gmail.</span>' : '<span class="err">Not connected.</span>')
+    + '<p>Last check: ' + (s.lastRun ? new Date(s.lastRun).toLocaleString() : 'never') + (s.lastError ? ' <span class="err">(' + s.lastError.replace(/</g,'&lt;') + ')</span>' : '') + '</p>'
+    + '<a class="btn" href="/oauth/google/start">' + (s.connected ? 'Reconnect Gmail' : 'Connect Gmail') + '</a>'
+    + (s.connected ? '<button class="btn gold" id="run">Clean drafts now</button>' : '');
+  const run = document.getElementById('run');
+  if(run) run.onclick = async () => { run.disabled = true; run.textContent = 'Cleaning…'; await fetch('/api/gmail/sweep',{method:'POST'}); load(); };
+  const f = s.fixed || [];
+  if(f.length) document.getElementById('fixed').innerHTML = f.map(x => '<li>' + (x.subject||'(no subject)').replace(/</g,'&lt;') + ' <small>' + new Date(x.at).toLocaleString() + '</small></li>').join('');
+}
+load();
+</script>
+</main></body></html>
