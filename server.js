@@ -11,6 +11,9 @@ const PASS = process.env.DASH_PASS;               // set in Render > Environment
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'state.json');
 const INDEX = path.join(__dirname, 'public', 'index.html');
+const GMAIL_PAGE = path.join(__dirname, 'public', 'gmail.html');
+const BASE_URL = (process.env.BASE_URL || 'https://poulton-hq.onrender.com').replace(/\/$/, '');
+const gmail = require('./gmail-clean')({ dataDir: DATA_DIR, baseUrl: BASE_URL, clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET });
 
 if (!PASS) console.error('DASH_PASS is not set: the dashboard stays locked until it is added in Render > Environment.');
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -29,6 +32,15 @@ const security = {
 
 http.createServer((req, res) => {
   if (req.url === '/healthz') { res.writeHead(200); return res.end('ok'); }
+  // Google sends the browser back here after consent; protected by the one-time state value.
+  if (req.url.startsWith('/oauth/google/callback')) {
+    const q = Object.fromEntries(new URL(req.url, BASE_URL).searchParams);
+    gmail.handleCallback(q)
+      .then(() => gmail.sweep())
+      .then(() => { res.writeHead(302, { Location: '/gmail', ...security }); res.end(); })
+      .catch(e => { res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8', ...security }); res.end('Gmail connection failed: ' + e.message); });
+    return;
+  }
   if (!PASS) {
     res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8', ...security });
     return res.end('<meta name="viewport" content="width=device-width"><body style="font-family:sans-serif;padding:32px;color:#1a3a5c"><h1>Poulton HQ is locked</h1><p>Add the environment variable <b>DASH_PASS</b> in Render &gt; poulton-hq &gt; Environment, save, and the dashboard will open behind your password.</p></body>');
@@ -63,9 +75,28 @@ http.createServer((req, res) => {
     });
     return;
   }
+  if (url === '/oauth/google/start') {
+    if (!gmail.enabled) { res.writeHead(400, security); return res.end('Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Render > Environment first.'); }
+    res.writeHead(302, { Location: gmail.authUrl(), ...security }); return res.end();
+  }
+  if (url === '/api/gmail/status' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json', ...security });
+    return res.end(JSON.stringify({ enabled: gmail.enabled, ...gmail.status() }));
+  }
+  if (url === '/api/gmail/sweep' && req.method === 'POST') {
+    gmail.sweep().then(s => { res.writeHead(200, { 'Content-Type': 'application/json', ...security }); res.end(JSON.stringify(s)); });
+    return;
+  }
+  if (url === '/gmail') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', ...security });
+    return fs.createReadStream(GMAIL_PAGE).pipe(res);
+  }
   if (url === '/' || url === '/index.html') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', ...security });
     return fs.createReadStream(INDEX).pipe(res);
   }
   res.writeHead(404, security); res.end('Not found');
 }).listen(PORT, () => console.log(`Poulton HQ on port ${PORT}`));
+
+// Clean agent drafts every 5 minutes (only does anything once Gmail is connected).
+if (gmail.enabled) { setTimeout(() => gmail.sweep(), 15000); setInterval(() => gmail.sweep(), 5 * 60 * 1000); }
