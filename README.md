@@ -19,3 +19,17 @@ Cliff Poulton's daily operations dashboard for Poulton Consultancy: the agent ci
 
 ## Update the dashboard
 Edit `public/index.html`, commit to GitHub, and Render redeploys automatically.
+
+## Gmail link cleaner (one-click links in agent drafts)
+
+Drafts saved by the Claude Gmail connector have every link wrapped in a google.com/url redirect. HQ connects to Gmail itself (scope `gmail.compose`, drafts only) and puts the real links back every 5 minutes. It never sends, deletes or reads received mail.
+
+One-time setup (about 10 minutes):
+1. Go to console.cloud.google.com while signed in as info@poultonconsults.com and create a project called "Poulton HQ".
+2. APIs & Services > Library: enable the **Gmail API**.
+3. APIs & Services > OAuth consent screen: choose **Internal** (Google Workspace), app name "Poulton HQ", support email info@poultonconsults.com. Add the scope `.../auth/gmail.compose`.
+4. APIs & Services > Credentials > Create credentials > OAuth client ID > **Web application**. Authorised redirect URI: `https://poulton-hq.onrender.com/oauth/google/callback`. Copy the Client ID and Client secret.
+5. Render > poulton-hq > Environment: add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `BASE_URL` = `https://poulton-hq.onrender.com`. Save (Render redeploys).
+6. Open HQ > **Gmail links** > **Connect Gmail**, approve, and you land back on the page showing "Connected". Press **Clean drafts now** to fix every existing draft straight away.
+
+If the HQ address is different, use it in steps 4 and 5.
